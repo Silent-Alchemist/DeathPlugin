@@ -1,18 +1,18 @@
 name: DeathPlugin
 version: '${project.version}'
-main: de.neko.deathplugin.DeathPlugin
-api-version: 1.19
-authors: [ neko ]
-website: https://github.com/Meowar1
+main: com.isilently.deathplugin.DeathPlugin
+api-version: 1.21
+authors: [ iSilently ]
+website: https://github.com/Silent-Alchemist/
 commands:
-  deathmoney:
+  essence:
     usage: /<command>
     aliases:
-      - vigor
-  deathmoneysend:
+      - ess
+  essencesend:
     usage: /<command> [Player] [Amount]
     aliases:
-      - vigorsend
+      - esssend
   revive:
     usage: /<command> [Player]
     permission: deathplugin.revive

@@ -1,0 +1,105 @@
+package com.isilently.deathplugin;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Set;
+import java.util.logging.Level;
+
+import org.bukkit.Bukkit;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.plugin.java.JavaPlugin;
+
+import com.isilently.deathplugin.commands.AddExchangeItemCommand;
+import com.isilently.deathplugin.commands.DeathMoneyCommand;
+import com.isilently.deathplugin.commands.DeathMoneySendCommand;
+import com.isilently.deathplugin.commands.ExchangeCommand;
+import com.isilently.deathplugin.commands.ExchangeListCommand;
+import com.isilently.deathplugin.commands.ReviveCommand;
+import com.isilently.deathplugin.listeners.DeathListener;
+import com.isilently.deathplugin.listeners.JoinListener;
+import com.isilently.deathplugin.utils.SQLBridge;
+
+public final class DeathPlugin extends JavaPlugin {
+
+    private SQLBridge sqlBridge;
+    private HashMap<ItemStack, Integer> valueMap = new HashMap<>();
+    private HashMap<String, ItemStack> nameMap = new HashMap<>();
+    private File itemsFile;
+    private FileConfiguration itemsConfig;
+
+    @Override
+    public void onEnable() {
+        getConfig().options().copyDefaults(true);
+        saveConfig();
+
+        sqlBridge = new SQLBridge(this);
+
+        itemsFile = new File(getDataFolder(), "items.yml");
+        if (!itemsFile.exists())
+            saveResource("items.yml", false);
+        itemsConfig = YamlConfiguration.loadConfiguration(itemsFile);
+
+        Set<String> keys = itemsConfig.getKeys(false);
+
+        for (String currKey : keys) {
+            try {
+                ItemStack itemStack = itemsConfig.getItemStack(currKey);
+                if (itemStack == null)
+                    throw new Exception();
+                int value = Integer.parseInt(itemsConfig.getString(currKey + ".value"));
+                if (!valueMap.containsKey(itemStack)) {
+                    valueMap.put(itemStack, value);
+                    nameMap.put(currKey, itemStack);
+                } else
+                    Bukkit.getServer().getLogger().log(Level.WARNING,
+                            "Item: " + itemStack + " is already on the list!");
+            } catch (Exception e) {
+                Bukkit.getServer().getLogger().log(Level.SEVERE, currKey + " is set incorrectly!");
+            }
+        }
+
+        registerListener();
+        registerCommands();
+    }
+
+    public void registerListener() {
+        this.getServer().getPluginManager().registerEvents(new JoinListener(sqlBridge,
+                getConfig().getString("Messages.dailyJoin"), getConfig().getInt("Money.dailyJoin")), this);
+        this.getServer().getPluginManager()
+                .registerEvents(new DeathListener(sqlBridge, getConfig().getString("Messages.death"),
+                        getConfig().getInt("Money.death"),
+                        getConfig().getInt("Money.first24HDeath"),
+                        getConfig().getBoolean("Money.loseAll"),
+                        getConfig().getString("Messages.ban")), this);
+    }
+
+    public void registerCommands() {
+        this.getCommand("essence")
+                .setExecutor(new DeathMoneyCommand(sqlBridge, getConfig().getString("Messages.money"),
+                        getConfig().getString("Messages.giveMoney"), getConfig().getString("Messages.takeMoney")));
+        this.getCommand("essencesend").setExecutor(new DeathMoneySendCommand(sqlBridge,
+                getConfig().getString("Messages.moneySend1"), getConfig().getString("Messages.moneySend2")));
+        this.getCommand("revive").setExecutor(new ReviveCommand(sqlBridge, getConfig().getInt("Money.reviveCost")));
+        this.getCommand("exchange").setExecutor(new ExchangeCommand(sqlBridge, valueMap, nameMap));
+        this.getCommand("exchangelist").setExecutor(new ExchangeListCommand(valueMap, nameMap));
+        this.getCommand("addexchangeitem").setExecutor(new AddExchangeItemCommand(this));
+    }
+
+    public boolean newItem(String name, ItemStack itemStack, int value) {
+        if (nameMap.containsKey(name.toLowerCase()))
+            return false;
+        itemsConfig.set(name, itemStack);
+        itemsConfig.set(name + ".value", value);
+        nameMap.put(name, itemStack);
+        valueMap.put(itemStack, value);
+        try {
+            itemsConfig.save(itemsFile);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return true;
+    }
+}
